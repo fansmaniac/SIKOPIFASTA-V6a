@@ -27,15 +27,15 @@ export async function upsertUserProfile(uid, payload = {}) {
 
   const ref = doc(db, "users", uid);
 
-  const data = {
-    uid,
-    email: payload.email ? String(payload.email).trim() : null,
-    displayName: payload.displayName ? String(payload.displayName).trim() : null,
-    role: payload.role || DEFAULTS.USER_ROLE || USER_ROLE.USER,
-    isActive: payload.isActive !== false,
-    updatedAt: serverTimestamp(),
-    createdAt: payload.createdAt || serverTimestamp(),
-  };
+ const data = {
+  uid,
+  email: payload.email ? String(payload.email).trim() : null,
+  displayName: payload.displayName ? String(payload.displayName).trim() : null,
+  nama: payload.nama ? String(payload.nama).trim() : null,
+  isActive: payload.isActive !== false,
+  updatedAt: serverTimestamp(),
+};
+
 
   // merge:true supaya tidak menimpa field yang sudah ada
   await setDoc(ref, data, { merge: true });

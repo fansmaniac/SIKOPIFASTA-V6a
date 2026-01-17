@@ -42,7 +42,7 @@ export function useAuth() {
             email: u.email || "",
             displayName: u.displayName || "",
             nama: (u.displayName || "").toUpperCase(),
-            role: "user",
+            role: "",
             isActive: true,
           });
 
