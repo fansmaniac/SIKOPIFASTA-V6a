@@ -1,153 +1,110 @@
 // src/utils/constants.js
 
 /**
- * =========================
- * KATEGORI FASILITAS
- * =========================
- * value  → disimpan ke Firestore
- * label  → ditampilkan di UI
+ * SIKOPIFASTA constants
+ * - Categories: 3 sub-menu inventaris
+ * - Status: untuk proses inventaris + peminjaman
+ * - statusOrder: untuk sorting prioritas tabel (requested -> borrowed -> available -> broken/maintenance)
  */
-export const CATEGORIES = [
-  {
-    value: "vehicle",
-    label: "Kendaraan Dinas",
-    description: "Mobil, motor, dan kendaraan operasional",
-  },
-  {
-    value: "electronics",
-    label: "Peralatan Elektronik",
-    description: "Laptop, proyektor, kamera, printer, dll",
-  },
-  {
-    value: "room",
-    label: "Ruangan / Aula",
-    description: "Ruang rapat, aula, ruang kelas",
-  },
-  {
-    value: "equipment",
-    label: "Peralatan Penunjang",
-    description: "Sound system, kursi, tenda, genset",
-  },
-  {
-    value: "other",
-    label: "Fasilitas Lainnya",
-    description: "Inventaris lain di luar kategori utama",
-  },
+
+// =====================
+// Categories
+// =====================
+export const ASSET_CATEGORIES = [
+  { key: "vehicle", label: "Kendaraan Dinas" },
+  { key: "electronics", label: "Peralatan Elektronik" },
+  { key: "other", label: "Barang Lainnya" },
 ];
 
-/**
- * Helper cepat
- */
-export const CATEGORY_MAP = Object.fromEntries(
-  CATEGORIES.map((c) => [c.value, c])
-);
-
-/**
- * =========================
- * STATUS FASILITAS
- * =========================
- */
-export const ASSET_STATUS = {
-  AVAILABLE: "available", // siap dipinjam
-  BORROWED: "borrowed",   // sedang dipinjam
-  MAINTENANCE: "maintenance", // perbaikan
-  INACTIVE: "inactive",   // tidak aktif
+export const ASSET_CATEGORY_LABEL = {
+  vehicle: "Kendaraan Dinas",
+  electronics: "Peralatan Elektronik",
+  other: "Barang Lainnya",
 };
 
-/**
- * Label untuk UI
- */
+// =====================
+// Status (master)
+// =====================
+// catatan mapping:
+// - "requested" = Dalam Antrian / Diajukan
+// - "borrowed"  = Dipinjam
+// - "available" = Tersedia
+// - "broken"    = Rusak
+// - "maintenance" = Maintenance/Perbaikan (opsional tapi berguna)
+export const ASSET_STATUS = [
+  { key: "available", label: "Tersedia" },
+  { key: "requested", label: "Dalam Antrian" }, // atau "Diajukan"
+  { key: "borrowed", label: "Dipinjam" },
+  { key: "broken", label: "Rusak" },
+  { key: "maintenance", label: "Perawatan" },
+];
+
 export const ASSET_STATUS_LABEL = {
-  [ASSET_STATUS.AVAILABLE]: "Tersedia",
-  [ASSET_STATUS.BORROWED]: "Dipinjam",
-  [ASSET_STATUS.MAINTENANCE]: "Perawatan",
-  [ASSET_STATUS.INACTIVE]: "Nonaktif",
+  available: "Tersedia",
+  requested: "Dalam Antrian",
+  borrowed: "Dipinjam",
+  broken: "Rusak",
+  maintenance: "Perawatan",
 };
 
-/**
- * Warna badge (Tailwind-friendly)
- */
-export const ASSET_STATUS_COLOR = {
-  [ASSET_STATUS.AVAILABLE]: "emerald",
-  [ASSET_STATUS.BORROWED]: "amber",
-  [ASSET_STATUS.MAINTENANCE]: "sky",
-  [ASSET_STATUS.INACTIVE]: "slate",
+// Untuk dropdown filter (UI)
+export const ASSET_STATUS_FILTER_OPTIONS = [
+  { key: "all", label: "Semua Status" },
+  ...ASSET_STATUS.map((s) => ({ key: s.key, label: s.label })),
+];
+
+// =====================
+// Sorting Priority
+// =====================
+// rules urutan tabel:
+// 1) requested (antrian/diajukan) paling atas
+// 2) borrowed (dipinjam) lalu urut by loanEndAt paling dekat
+// 3) available
+// 4) broken / maintenance paling bawah
+export const STATUS_ORDER = {
+  requested: 1,
+  borrowed: 2,
+  available: 3,
+  // rusak & perawatan: paling bawah
+  maintenance: 4,
+  broken: 5,
 };
 
-/**
- * =========================
- * STATUS PINJAMAN
- * =========================
- */
-export const LOAN_STATUS = {
-  REQUESTED: "requested", // diajukan user
-  APPROVED: "approved",   // disetujui admin
-  REJECTED: "rejected",   // ditolak admin
-  BORROWED: "borrowed",   // sedang dipakai
-  RETURNED: "returned",   // sudah dikembalikan
-  LATE: "late",           // terlambat
-};
+// =====================
+// Helpers
+// =====================
+export function getCategoryLabel(categoryKey) {
+  return ASSET_CATEGORY_LABEL[categoryKey] || String(categoryKey || "-");
+}
 
-export const LOAN_STATUS_LABEL = {
-  [LOAN_STATUS.REQUESTED]: "Diajukan",
-  [LOAN_STATUS.APPROVED]: "Disetujui",
-  [LOAN_STATUS.REJECTED]: "Ditolak",
-  [LOAN_STATUS.BORROWED]: "Dipinjam",
-  [LOAN_STATUS.RETURNED]: "Dikembalikan",
-  [LOAN_STATUS.LATE]: "Terlambat",
-};
+export function getStatusLabel(statusKey) {
+  return ASSET_STATUS_LABEL[statusKey] || String(statusKey || "-");
+}
 
-/**
- * =========================
- * ROLE USER
- * =========================
- */
-export const USER_ROLE = {
-  ADMIN: "admin",
-  USER: "user",
-};
-
-/**
- * =========================
- * DEFAULT VALUES
- * =========================
- */
-export const DEFAULTS = {
-  ASSET_STATUS: ASSET_STATUS.AVAILABLE,
-  USER_ROLE: USER_ROLE.USER,
-  IS_ACTIVE: true,
-};
-
-/**
- * =========================
- * UTIL FUNCTIONS
- * =========================
- */
-
-/**
- * Ambil label kategori dari value
- */
-export function getCategoryLabel(value) {
-  return CATEGORY_MAP[value]?.label || value;
+export function getStatusOrder(statusKey) {
+  return STATUS_ORDER[statusKey] ?? 99;
 }
 
 /**
- * Ambil label status aset
+ * Build uniqueKey untuk upsert via upload excel
+ * - vehicle: PLAT:<plat>
+ * - electronics/other: NUP:<nup>
  */
-export function getAssetStatusLabel(status) {
-  return ASSET_STATUS_LABEL[status] || status;
+export function buildUniqueKey(category, { plate, nup }) {
+  if (category === "vehicle") {
+    const p = String(plate || "").trim().toUpperCase();
+    return p ? `PLAT:${p}` : "";
+  }
+  const n = String(nup || "").trim().toUpperCase();
+  return n ? `NUP:${n}` : "";
 }
 
 /**
- * Ambil warna badge status aset
+ * Normalisasi string pencarian (buat searchKey)
  */
-export function getAssetStatusColor(status) {
-  return ASSET_STATUS_COLOR[status] || "slate";
-}
-
-/**
- * Ambil label status pinjaman
- */
-export function getLoanStatusLabel(status) {
-  return LOAN_STATUS_LABEL[status] || status;
+export function normalizeSearchText(str) {
+  return String(str || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
