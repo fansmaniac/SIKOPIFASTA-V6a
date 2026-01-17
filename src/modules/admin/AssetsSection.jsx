@@ -20,12 +20,13 @@ import {
   normalizeSearchText,
 } from "../../utils/constants";
 
-// ✅ FIX: pakai softDeleteAsset (bukan deleteAsset)
 import {
   listAssetsByCategory,
   softDeleteAsset,
-  // upsertAsset, // nanti dipakai modal tambah/edit
+  upsertAsset,
 } from "../../services/assets.service";
+
+import AssetFormModal from "./AssetFormModal";
 
 export default function AssetsSection() {
   const [category, setCategory] = useState("vehicle");
@@ -35,12 +36,12 @@ export default function AssetsSection() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // modal stub
+  // modal
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
 
   // ============ load data ============
-  async function reload() {
+  const reload = async () => {
     setLoading(true);
     try {
       const data = await listAssetsByCategory(category);
@@ -48,14 +49,14 @@ export default function AssetsSection() {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     let alive = true;
 
     (async () => {
+      setLoading(true);
       try {
-        setLoading(true);
         const data = await listAssetsByCategory(category);
         if (!alive) return;
         setRows(Array.isArray(data) ? data : []);
@@ -90,7 +91,7 @@ export default function AssetsSection() {
     const query = normalizeSearchText(q);
     let out = [...rows];
 
-    // status filter
+    // filter status
     if (statusFilter !== "all") {
       out = out.filter((r) => (r?.status || "available") === statusFilter);
     }
@@ -102,9 +103,7 @@ export default function AssetsSection() {
         const plate = normalizeSearchText(
           r?.vehiclePlate || r?.plate || r?.nomorPlat || ""
         );
-        const nup = normalizeSearchText(
-          r?.nupCode || r?.nup || r?.kodeNup || ""
-        );
+        const nup = normalizeSearchText(r?.nupCode || r?.nup || r?.kodeNup || "");
         const borrower = normalizeSearchText(
           r?.borrowerName || r?.currentBorrowerName || r?.peminjam || ""
         );
@@ -128,7 +127,7 @@ export default function AssetsSection() {
       const ob = getStatusOrder(sb);
       if (oa !== ob) return oa - ob;
 
-      // sama-sama borrowed => urut loanEndAt paling dekat
+      // borrowed => urut tgl kembali terdekat
       if (sa === "borrowed" && sb === "borrowed") {
         const da = a?.loanEndAt ? new Date(a.loanEndAt).getTime() : Infinity;
         const db = b?.loanEndAt ? new Date(b.loanEndAt).getTime() : Infinity;
@@ -165,24 +164,16 @@ export default function AssetsSection() {
 
   const onDelete = async (row) => {
     const ok = window.confirm(
-      `Yakin hapus "${row?.name || row?.nama || "-"}"?\n\nCatatan: ini pakai soft delete (nanti bisa kita bikin restore).`
+      `Yakin hapus "${row?.name || row?.nama || "-"}"?\n\nCatatan: ini soft delete (nanti bisa restore).`
     );
     if (!ok) return;
 
-    // ✅ FIX: pakai softDeleteAsset
     await softDeleteAsset(row.id);
-
-    // reload cepat
     await reload();
   };
 
-  const onExport = () => {
-    alert("Export .xlsx: nanti kita pasang di step berikutnya.");
-  };
-
-  const onImport = () => {
-    alert("Import .xlsx: nanti kita pasang di step berikutnya.");
-  };
+  const onExport = () => alert("Export .xlsx: kita pasang di step berikutnya.");
+  const onImport = () => alert("Import .xlsx: kita pasang di step berikutnya.");
 
   const categoryLabel = getCategoryLabel(category);
 
@@ -378,7 +369,10 @@ export default function AssetsSection() {
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
-                      {r.borrowerName || r.currentBorrowerName || r.peminjam || "-"}
+                      {r.borrowerName ||
+                        r.currentBorrowerName ||
+                        r.peminjam ||
+                        "-"}
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
@@ -401,7 +395,9 @@ export default function AssetsSection() {
                             className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center"
                             type="button"
                             onClick={() =>
-                              alert("Proses ajuan: nanti kita sambung ke loans flow.")
+                              alert(
+                                "Proses ajuan: nanti kita sambung ke loans flow."
+                              )
                             }
                           >
                             <ClipboardCheck size={18} />
@@ -435,37 +431,23 @@ export default function AssetsSection() {
         </div>
       </div>
 
-      {/* Modal stub */}
-      {openForm && (
-        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center p-3 z-50">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-5">
-            <p className="text-xs font-black uppercase tracking-widest text-gray-400">
-              {editing ? "Edit" : "Tambah"} — {categoryLabel}
-            </p>
-            <p className="mt-3 text-sm text-gray-600">
-              Form input kategori ini kita bikin setelah ini (dialog sesuai
-              kendaraan/elektronik/barang lain).
-            </p>
-
-            <div className="mt-6 flex gap-2 justify-end">
-              <button
-                className="px-5 py-3 rounded-2xl bg-slate-100 text-gray-700 font-black text-xs uppercase tracking-widest"
-                type="button"
-                onClick={() => setOpenForm(false)}
-              >
-                Tutup
-              </button>
-              <button
-                className="px-5 py-3 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest"
-                type="button"
-                onClick={() => alert("Simpan: nanti kita sambungkan ke upsertAsset().")}
-              >
-                Simpan
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ✅ Modal Form */}
+      <AssetFormModal
+        open={openForm}
+        category={category}
+        initialData={editing}
+        onClose={() => {
+          setOpenForm(false);
+          setEditing(null);
+        }}
+        onSubmit={async (payload) => {
+          // INI posisi yang kamu cari:
+          await upsertAsset(payload);
+          await reload();
+          setOpenForm(false);
+          setEditing(null);
+        }}
+      />
     </div>
   );
 }
@@ -499,7 +481,11 @@ function StatCard({ title, value, onClick, active }) {
       >
         {title}
       </p>
-      <p className={`mt-2 text-2xl font-black ${active ? "text-white" : "text-gray-900"}`}>
+      <p
+        className={`mt-2 text-2xl font-black ${
+          active ? "text-white" : "text-gray-900"
+        }`}
+      >
         {value}
       </p>
     </button>
