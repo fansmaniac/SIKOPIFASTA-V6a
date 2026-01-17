@@ -1,6 +1,7 @@
 // src/modules/admin/AdminPanel.jsx
 import React, { useMemo, useState } from "react";
 import { LayoutDashboard, Boxes, Users, Settings, LogOut } from "lucide-react";
+import AssetsSection from "./AssetsSection";
 import { logout } from "../../services/auth.service";
 
 
@@ -98,18 +99,7 @@ export default function AdminPanel() {
               {tabTitle}
             </p>
 
-            {tab === "assets" && (
-              <div className="mt-4">
-                <div className="rounded-3xl bg-slate-50 border border-slate-100 p-4 sm:p-6">
-                  <p className="font-black text-gray-900">(Stub) Area Inventaris</p>
-                  <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-                    Nanti di sini kita pasang komponen{" "}
-                    <span className="font-bold">AssetsSection</span>: list fasilitas,
-                    tambah/edit/hapus, status tersedia/dipinjam, dll.
-                  </p>
-                </div>
-              </div>
-            )}
+            {tab === "assets" && <AssetsSection />}
 
             {tab === "users" && (
               <div className="mt-4">
