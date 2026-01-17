@@ -62,6 +62,11 @@ export function useAuth() {
             p = await getUserProfileByUid(u.uid);
           }
         }
+        if (p && p.isActive === false) {
+        setProfile(null);
+        setError("Akun kamu dinonaktifkan.");
+        return;
+}
 
         setProfile(p);
       } catch (e) {
