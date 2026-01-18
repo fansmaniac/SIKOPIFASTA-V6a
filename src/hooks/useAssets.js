@@ -23,7 +23,7 @@ export function useAssets(initialCategory = "vehicle") {
       const data = await listAssetsByCategory(category);
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
-      setError(e?.message || "Gagal memuat data assets.");
+      setError(e?.message || "Gagal memuat data inventaris.");
       setRows([]);
     } finally {
       setLoading(false);

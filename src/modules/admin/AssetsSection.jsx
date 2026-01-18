@@ -1,5 +1,5 @@
 // src/modules/admin/AssetsSection.jsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Filter,
@@ -43,10 +43,17 @@ export default function AssetsSection() {
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
 
+  // reset filter/search saat ganti kategori
+  useEffect(() => {
+    setStatusFilter("all");
+    setQ("");
+  }, [category]);
+
   // ============ stats ============
   const stats = useMemo(() => {
     const total = rows.length;
-    const by = (key) => rows.filter((r) => (r?.status || "available") === key).length;
+    const by = (key) =>
+      rows.filter((r) => (r?.status || "available") === key).length;
 
     return {
       total,
@@ -75,7 +82,9 @@ export default function AssetsSection() {
         const plate = normalizeSearchText(
           r?.vehiclePlate || r?.plate || r?.nomorPlat || ""
         );
-        const nup = normalizeSearchText(r?.nupCode || r?.nup || r?.kodeNup || "");
+        const nup = normalizeSearchText(
+          r?.nupCode || r?.nup || r?.kodeNup || ""
+        );
         const borrower = normalizeSearchText(
           r?.borrowerName || r?.currentBorrowerName || r?.peminjam || ""
         );
@@ -157,10 +166,19 @@ export default function AssetsSection() {
           <h2 className="text-xl sm:text-2xl font-black text-gray-900">
             INVENTARIS KANTOR
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Kategori:{" "}
-            <span className="font-black text-indigo-600">{categoryLabel}</span>
-          </p>
+
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-gray-500">
+              Kategori:{" "}
+              <span className="font-black text-indigo-600">{categoryLabel}</span>
+            </p>
+
+            {(loading || busy) && (
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                {busy ? "Memproses..." : "Memuat..."}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -196,7 +214,7 @@ export default function AssetsSection() {
 
           <button
             onClick={reload}
-            disabled={busy}
+            disabled={busy || loading}
             className="px-4 py-2 rounded-2xl bg-slate-100 text-slate-700 font-black text-xs uppercase tracking-widest flex items-center gap-2 disabled:opacity-60"
             type="button"
           >
@@ -237,30 +255,35 @@ export default function AssetsSection() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <StatCard
+          disabled={busy}
           active={statusFilter === "all"}
           title="TOTAL UNIT"
           value={stats.total}
           onClick={() => pickStat("total")}
         />
         <StatCard
+          disabled={busy}
           active={statusFilter === "available"}
           title="TERSEDIA"
           value={stats.available}
           onClick={() => pickStat("available")}
         />
         <StatCard
+          disabled={busy}
           active={statusFilter === "borrowed"}
           title="DIPINJAM"
           value={stats.borrowed}
           onClick={() => pickStat("borrowed")}
         />
         <StatCard
+          disabled={busy}
           active={statusFilter === "requested"}
           title="DALAM ANTRIAN"
           value={stats.requested}
           onClick={() => pickStat("requested")}
         />
         <StatCard
+          disabled={busy}
           active={statusFilter === "broken"}
           title="RUSAK"
           value={stats.broken}
@@ -361,7 +384,10 @@ export default function AssetsSection() {
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
-                      {r.borrowerName || r.currentBorrowerName || r.peminjam || "-"}
+                      {r.borrowerName ||
+                        r.currentBorrowerName ||
+                        r.peminjam ||
+                        "-"}
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
@@ -381,10 +407,13 @@ export default function AssetsSection() {
                         {(r.status || "") === "requested" && (
                           <button
                             title="Proses Ajuan"
-                            className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center"
+                            disabled={busy}
+                            className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center disabled:opacity-60"
                             type="button"
                             onClick={() =>
-                              alert("Proses ajuan: nanti kita sambung ke loans flow.")
+                              alert(
+                                "Proses ajuan: nanti kita sambung ke loans flow."
+                              )
                             }
                           >
                             <ClipboardCheck size={18} />
@@ -420,7 +449,7 @@ export default function AssetsSection() {
         </div>
       </div>
 
-      {/* ✅ Modal Form */}
+      {/* Modal Form */}
       <AssetFormModal
         open={openForm}
         category={category}
@@ -443,24 +472,39 @@ export default function AssetsSection() {
 
 function Th({ children, className = "" }) {
   return (
-    <th className={`p-4 text-xs font-black uppercase tracking-widest text-gray-400 ${className}`}>
+    <th
+      className={`p-4 text-xs font-black uppercase tracking-widest text-gray-400 ${className}`}
+    >
       {children}
     </th>
   );
 }
 
-function StatCard({ title, value, onClick, active }) {
+function StatCard({ title, value, onClick, active, disabled }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       type="button"
-      className={`rounded-3xl border p-4 text-left transition shadow-xl
-        ${active ? "bg-slate-800 border-slate-800 text-white" : "bg-white border-white"}`}
+      className={`rounded-3xl border p-4 text-left transition shadow-xl disabled:opacity-60
+        ${
+          active
+            ? "bg-slate-800 border-slate-800 text-white"
+            : "bg-white border-white"
+        }`}
     >
-      <p className={`text-[10px] font-black uppercase tracking-widest ${active ? "text-white/70" : "text-gray-400"}`}>
+      <p
+        className={`text-[10px] font-black uppercase tracking-widest ${
+          active ? "text-white/70" : "text-gray-400"
+        }`}
+      >
         {title}
       </p>
-      <p className={`mt-2 text-2xl font-black ${active ? "text-white" : "text-gray-900"}`}>
+      <p
+        className={`mt-2 text-2xl font-black ${
+          active ? "text-white" : "text-gray-900"
+        }`}
+      >
         {value}
       </p>
     </button>
