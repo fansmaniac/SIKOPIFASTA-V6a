@@ -1,5 +1,5 @@
 // src/modules/admin/AssetsSection.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Search,
   Filter,
@@ -20,61 +20,33 @@ import {
   normalizeSearchText,
 } from "../../utils/constants";
 
-import {
-  listAssetsByCategory,
-  softDeleteAsset,
-  upsertAsset,
-} from "../../services/assets.service";
-
+import { useAssets } from "../../hooks/useAssets";
 import AssetFormModal from "./AssetFormModal";
 
 export default function AssetsSection() {
-  const [category, setCategory] = useState("vehicle");
+  const {
+    category,
+    setCategory,
+    rows,
+    loading,
+    busy,
+    error,
+    reload,
+    saveAsset,
+    removeAsset,
+  } = useAssets("vehicle");
+
   const [statusFilter, setStatusFilter] = useState("all");
   const [q, setQ] = useState("");
-
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // modal
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  // ============ load data ============
-  const reload = async () => {
-    setLoading(true);
-    try {
-      const data = await listAssetsByCategory(category);
-      setRows(Array.isArray(data) ? data : []);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await listAssetsByCategory(category);
-        if (!alive) return;
-        setRows(Array.isArray(data) ? data : []);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [category]);
-
   // ============ stats ============
   const stats = useMemo(() => {
     const total = rows.length;
-    const by = (key) =>
-      rows.filter((r) => (r?.status || "available") === key).length;
+    const by = (key) => rows.filter((r) => (r?.status || "available") === key).length;
 
     return {
       total,
@@ -108,6 +80,7 @@ export default function AssetsSection() {
           r?.borrowerName || r?.currentBorrowerName || r?.peminjam || ""
         );
         const code = normalizeSearchText(r?.code || r?.kode || "");
+
         return (
           name.includes(query) ||
           plate.includes(query) ||
@@ -168,8 +141,7 @@ export default function AssetsSection() {
     );
     if (!ok) return;
 
-    await softDeleteAsset(row.id);
-    await reload();
+    await removeAsset(row.id);
   };
 
   const onExport = () => alert("Export .xlsx: kita pasang di step berikutnya.");
@@ -194,7 +166,8 @@ export default function AssetsSection() {
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <button
             onClick={onImport}
-            className="px-4 py-2 rounded-2xl bg-emerald-50 text-emerald-700 font-black text-xs uppercase tracking-widest flex items-center gap-2"
+            disabled={busy}
+            className="px-4 py-2 rounded-2xl bg-emerald-50 text-emerald-700 font-black text-xs uppercase tracking-widest flex items-center gap-2 disabled:opacity-60"
             type="button"
           >
             <Upload size={16} />
@@ -203,7 +176,8 @@ export default function AssetsSection() {
 
           <button
             onClick={onExport}
-            className="px-4 py-2 rounded-2xl bg-blue-50 text-blue-700 font-black text-xs uppercase tracking-widest flex items-center gap-2"
+            disabled={busy}
+            className="px-4 py-2 rounded-2xl bg-blue-50 text-blue-700 font-black text-xs uppercase tracking-widest flex items-center gap-2 disabled:opacity-60"
             type="button"
           >
             <Download size={16} />
@@ -212,14 +186,31 @@ export default function AssetsSection() {
 
           <button
             onClick={onAdd}
-            className="px-4 py-2 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg"
+            disabled={busy}
+            className="px-4 py-2 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg disabled:opacity-60"
             type="button"
           >
             <Plus size={16} />
             Tambah
           </button>
+
+          <button
+            onClick={reload}
+            disabled={busy}
+            className="px-4 py-2 rounded-2xl bg-slate-100 text-slate-700 font-black text-xs uppercase tracking-widest flex items-center gap-2 disabled:opacity-60"
+            type="button"
+          >
+            Refresh
+          </button>
         </div>
       </div>
+
+      {/* Error bar */}
+      {error ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-sm font-bold">
+          {error}
+        </div>
+      ) : null}
 
       {/* Category Tabs */}
       <div className="bg-white rounded-3xl shadow-xl border border-white p-2 overflow-x-auto">
@@ -228,7 +219,8 @@ export default function AssetsSection() {
             <button
               key={c.key}
               onClick={() => setCategory(c.key)}
-              className={`px-4 py-2 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition
+              disabled={busy}
+              className={`px-4 py-2 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 transition disabled:opacity-60
                 ${
                   category === c.key
                     ? "bg-indigo-600 text-white shadow"
@@ -369,10 +361,7 @@ export default function AssetsSection() {
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
-                      {r.borrowerName ||
-                        r.currentBorrowerName ||
-                        r.peminjam ||
-                        "-"}
+                      {r.borrowerName || r.currentBorrowerName || r.peminjam || "-"}
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
@@ -395,9 +384,7 @@ export default function AssetsSection() {
                             className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center"
                             type="button"
                             onClick={() =>
-                              alert(
-                                "Proses ajuan: nanti kita sambung ke loans flow."
-                              )
+                              alert("Proses ajuan: nanti kita sambung ke loans flow.")
                             }
                           >
                             <ClipboardCheck size={18} />
@@ -406,7 +393,8 @@ export default function AssetsSection() {
 
                         <button
                           title="Edit"
-                          className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-700 border border-slate-100 flex items-center justify-center"
+                          disabled={busy}
+                          className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-700 border border-slate-100 flex items-center justify-center disabled:opacity-60"
                           type="button"
                           onClick={() => onEdit(r)}
                         >
@@ -415,7 +403,8 @@ export default function AssetsSection() {
 
                         <button
                           title="Hapus"
-                          className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-700 border border-rose-100 flex items-center justify-center"
+                          disabled={busy}
+                          className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-700 border border-rose-100 flex items-center justify-center disabled:opacity-60"
                           type="button"
                           onClick={() => onDelete(r)}
                         >
@@ -441,11 +430,11 @@ export default function AssetsSection() {
           setEditing(null);
         }}
         onSubmit={async (payload) => {
-          // INI posisi yang kamu cari:
-          await upsertAsset(payload);
-          await reload();
-          setOpenForm(false);
-          setEditing(null);
+          const ok = await saveAsset(payload);
+          if (ok) {
+            setOpenForm(false);
+            setEditing(null);
+          }
         }}
       />
     </div>
@@ -454,9 +443,7 @@ export default function AssetsSection() {
 
 function Th({ children, className = "" }) {
   return (
-    <th
-      className={`p-4 text-xs font-black uppercase tracking-widest text-gray-400 ${className}`}
-    >
+    <th className={`p-4 text-xs font-black uppercase tracking-widest text-gray-400 ${className}`}>
       {children}
     </th>
   );
@@ -468,24 +455,12 @@ function StatCard({ title, value, onClick, active }) {
       onClick={onClick}
       type="button"
       className={`rounded-3xl border p-4 text-left transition shadow-xl
-        ${
-          active
-            ? "bg-slate-800 border-slate-800 text-white"
-            : "bg-white border-white"
-        }`}
+        ${active ? "bg-slate-800 border-slate-800 text-white" : "bg-white border-white"}`}
     >
-      <p
-        className={`text-[10px] font-black uppercase tracking-widest ${
-          active ? "text-white/70" : "text-gray-400"
-        }`}
-      >
+      <p className={`text-[10px] font-black uppercase tracking-widest ${active ? "text-white/70" : "text-gray-400"}`}>
         {title}
       </p>
-      <p
-        className={`mt-2 text-2xl font-black ${
-          active ? "text-white" : "text-gray-900"
-        }`}
-      >
+      <p className={`mt-2 text-2xl font-black ${active ? "text-white" : "text-gray-900"}`}>
         {value}
       </p>
     </button>
