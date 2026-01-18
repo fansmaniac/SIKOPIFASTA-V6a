@@ -18,30 +18,53 @@ export async function getUserProfileByUid(uid) {
 }
 
 /**
- * Upsert profil user.
- * - dipakai setelah register/login untuk memastikan ada dokumen user
- * - role default: DEFAULTS.USER_ROLE
- *   (kalau kamu set admin manual di console, dia tetap aman karena merge:true)
+ * Upsert profil user (AMAN: tidak menimpa role admin).
+ * - Dipakai setelah register/login untuk memastikan ada dokumen user.
+ * - Role hanya di-set saat user BARU dibuat.
  */
 export async function upsertUserProfile(uid, payload = {}) {
   if (!uid) throw new Error("UID wajib ada.");
 
   const ref = doc(db, "users", uid);
 
+  // cek apakah user sudah ada
+  const snap = await getDoc(ref);
+  const isNew = !snap.exists();
+  const existing = snap.exists() ? snap.data() : null;
+
   const data = {
     uid,
-    email: payload.email ? String(payload.email).trim() : null,
-    displayName: payload.displayName ? String(payload.displayName).trim() : null,
-    nama: payload.nama ? String(payload.nama).trim() : null,
 
-    // ✅ pakai DEFAULTS
-    role: payload.role ? String(payload.role).trim() : DEFAULTS.USER_ROLE,
-    isActive: payload.isActive === false ? false : DEFAULTS.IS_ACTIVE,
+    // kalau payload kosong, jangan null-kan data lama
+    email: payload.email ? String(payload.email).trim() : (existing?.email ?? null),
+    displayName: payload.displayName
+      ? String(payload.displayName).trim()
+      : (existing?.displayName ?? null),
+    nama: payload.nama ? String(payload.nama).trim() : (existing?.nama ?? null),
+
+    // ✅ isActive boleh diupdate, tapi default dipakai saat baru
+    isActive:
+      typeof payload.isActive === "boolean"
+        ? payload.isActive
+        : (existing?.isActive ?? DEFAULTS.IS_ACTIVE),
 
     updatedAt: serverTimestamp(),
+    ...(isNew ? { createdAt: serverTimestamp() } : {}),
   };
 
-  // merge:true supaya tidak menimpa field yang sudah ada
+  // ✅ role cuma untuk user baru
+  if (isNew) {
+    data.role = DEFAULTS.USER_ROLE; // misalnya "user"
+  }
+
+  // merge:true supaya update sebagian field saja
   await setDoc(ref, data, { merge: true });
-  return data; // ✅ lebih enak, bisa langsung dipakai di useAuth tanpa fetch ulang
+
+  // return object terbaru (role diambil dari existing kalau bukan new)
+  return {
+    uid,
+    ...(existing || {}),
+    ...data,
+    role: isNew ? data.role : (existing?.role ?? DEFAULTS.USER_ROLE),
+  };
 }
