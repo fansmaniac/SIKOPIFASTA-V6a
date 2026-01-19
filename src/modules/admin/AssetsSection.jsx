@@ -42,8 +42,40 @@ function normalizeHeader(h) {
     .replace(/_/g, "");
 }
 
-// CSV parser (support quoted commas, "" escape)
-function parseCSV(text) {
+// detect delimiter between comma/semicolon (based on first line)
+function detectDelimiter(text) {
+  const firstLine = String(text || "").split(/\r?\n/)[0] || "";
+  let commas = 0;
+  let semis = 0;
+  let inQuotes = false;
+
+  for (let i = 0; i < firstLine.length; i++) {
+    const c = firstLine[i];
+    const next = firstLine[i + 1];
+
+    if (inQuotes) {
+      if (c === '"' && next === '"') {
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
+      }
+      continue;
+    }
+
+    if (c === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (c === ",") commas++;
+    if (c === ";") semis++;
+  }
+
+  return semis > commas ? ";" : ",";
+}
+
+// CSV parser (support quoted delimiter, "" escape)
+function parseCSV(text, delimiter = ",") {
   const rows = [];
   let row = [];
   let cur = "";
@@ -70,7 +102,7 @@ function parseCSV(text) {
       continue;
     }
 
-    if (c === ",") {
+    if (c === delimiter) {
       row.push(cur);
       cur = "";
       continue;
@@ -186,8 +218,7 @@ export default function AssetsSection() {
   // ============ stats ============
   const stats = useMemo(() => {
     const total = rows.length;
-    const by = (key) =>
-      rows.filter((r) => (r?.status || "available") === key).length;
+    const by = (key) => rows.filter((r) => (r?.status || "available") === key).length;
 
     return {
       total,
@@ -211,15 +242,9 @@ export default function AssetsSection() {
     if (queryText) {
       out = out.filter((r) => {
         const name = normalizeSearchText(r?.name || r?.nama || "");
-        const plate = normalizeSearchText(
-          r?.vehiclePlate || r?.plate || r?.nomorPlat || ""
-        );
-        const nup = normalizeSearchText(
-          r?.nupCode || r?.nup || r?.kodeNup || ""
-        );
-        const borrower = normalizeSearchText(
-          r?.borrowerName || r?.currentBorrowerName || r?.peminjam || ""
-        );
+        const plate = normalizeSearchText(r?.vehiclePlate || r?.plate || r?.nomorPlat || "");
+        const nup = normalizeSearchText(r?.nupCode || r?.nup || r?.kodeNup || "");
+        const borrower = normalizeSearchText(r?.borrowerName || r?.currentBorrowerName || r?.peminjam || "");
         const code = normalizeSearchText(r?.code || r?.kode || "");
 
         return (
@@ -295,9 +320,7 @@ export default function AssetsSection() {
       ...filtered.map((r) => headers.map((h) => esc(r?.[h])).join(",")),
     ];
 
-    const blob = new Blob([lines.join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
@@ -316,6 +339,7 @@ export default function AssetsSection() {
 
   const handleImportFile = async (file) => {
     if (!file) return;
+
     const name = file.name.toLowerCase();
     if (!name.endsWith(".csv")) {
       setImportMsg("File harus .csv ya sob 😄");
@@ -327,7 +351,8 @@ export default function AssetsSection() {
 
     try {
       const text = await file.text();
-      const parsed = parseCSV(text);
+      const delimiter = detectDelimiter(text);
+      const parsed = parseCSV(text, delimiter);
 
       if (!parsed.length || parsed.length < 2) {
         setImportMsg("CSV kosong atau tidak ada data baris.");
@@ -345,7 +370,6 @@ export default function AssetsSection() {
         return;
       }
 
-      // proses dengan batch kecil biar aman
       const payloads = dataRows
         .map((row) => mapRowToPayload(headers, row, category))
         .filter((p) => p?.name && String(p.name).trim() !== "");
@@ -360,13 +384,17 @@ export default function AssetsSection() {
       const errors = [];
 
       const BATCH = 10;
+
       for (let i = 0; i < payloads.length; i += BATCH) {
         const chunk = payloads.slice(i, i + BATCH);
+        setImportMsg(
+          `Import berjalan... ${Math.min(i + chunk.length, payloads.length)}/${payloads.length}`
+        );
 
         const results = await Promise.all(
-          chunk.map(async (p, idx) => {
+          chunk.map(async (p) => {
             try {
-              const res = await saveAsset(p); // hook -> service
+              const res = await saveAsset(p);
               return { ok: !!res, err: null, p };
             } catch (e) {
               return { ok: false, err: e, p };
@@ -394,14 +422,12 @@ export default function AssetsSection() {
         setImportMsg(
           `⚠️ Import selesai: ${ok} berhasil, ${fail} gagal. (Cek console untuk detail)`
         );
-        // biar gampang debug
         console.warn("Import CSV errors:", errors);
       }
     } catch (e) {
       setImportMsg(e?.message || "Gagal membaca CSV.");
     } finally {
       setImporting(false);
-      // reset input supaya bisa upload file yang sama lagi
       if (fileRef.current) fileRef.current.value = "";
     }
   };
@@ -677,10 +703,7 @@ export default function AssetsSection() {
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
-                      {r.borrowerName ||
-                        r.currentBorrowerName ||
-                        r.peminjam ||
-                        "-"}
+                      {r.borrowerName || r.currentBorrowerName || r.peminjam || "-"}
                     </td>
 
                     <td className="p-5 text-sm font-bold text-gray-700">
@@ -779,9 +802,7 @@ function StatCard({ title, value, onClick, active, disabled }) {
       type="button"
       className={`rounded-3xl border p-4 text-left transition shadow-xl disabled:opacity-60
         ${
-          active
-            ? "bg-slate-800 border-slate-800 text-white"
-            : "bg-white border-white"
+          active ? "bg-slate-800 border-slate-800 text-white" : "bg-white border-white"
         }`}
     >
       <p
@@ -791,11 +812,7 @@ function StatCard({ title, value, onClick, active, disabled }) {
       >
         {title}
       </p>
-      <p
-        className={`mt-2 text-2xl font-black ${
-          active ? "text-white" : "text-gray-900"
-        }`}
-      >
+      <p className={`mt-2 text-2xl font-black ${active ? "text-white" : "text-gray-900"}`}>
         {value}
       </p>
     </button>
