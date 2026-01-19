@@ -49,6 +49,9 @@ export default function AssetsSection() {
     setQ("");
   }, [category]);
 
+  // label kategori (✅ kamu tadi belum define ini)
+  const categoryLabel = getCategoryLabel(category);
+
   // ============ stats ============
   const stats = useMemo(() => {
     const total = rows.length;
@@ -67,7 +70,7 @@ export default function AssetsSection() {
 
   // ============ filter + search + sort ============
   const filtered = useMemo(() => {
-    const query = normalizeSearchText(q);
+    const queryText = normalizeSearchText(q);
     let out = [...rows];
 
     // filter status
@@ -76,7 +79,7 @@ export default function AssetsSection() {
     }
 
     // search
-    if (query) {
+    if (queryText) {
       out = out.filter((r) => {
         const name = normalizeSearchText(r?.name || r?.nama || "");
         const plate = normalizeSearchText(
@@ -91,11 +94,11 @@ export default function AssetsSection() {
         const code = normalizeSearchText(r?.code || r?.kode || "");
 
         return (
-          name.includes(query) ||
-          plate.includes(query) ||
-          nup.includes(query) ||
-          borrower.includes(query) ||
-          code.includes(query)
+          name.includes(queryText) ||
+          plate.includes(queryText) ||
+          nup.includes(queryText) ||
+          borrower.includes(queryText) ||
+          code.includes(queryText)
         );
       });
     }
@@ -123,6 +126,61 @@ export default function AssetsSection() {
 
     return out;
   }, [rows, statusFilter, q]);
+
+  // ============ Export CSV (Excel bisa buka) ============
+  const exportCSV = () => {
+    const headers = [
+      "id",
+      "category",
+      "name",
+      "code",
+      "location",
+      "condition",
+      "qty",
+      "status",
+      "photoUrl",
+      "vehiclePlate",
+      "nupCode",
+      "brand",
+      "specs",
+      "chassisNumber",
+      "engineNumber",
+      "oilEngineAt",
+      "oilEngineNextAt",
+      "oilGearAt",
+      "oilGearNextAt",
+      "taxNextAt",
+      "borrowerName",
+      "loanStartAt",
+      "loanEndAt",
+    ];
+
+    const esc = (v) => {
+      const s = v == null ? "" : String(v);
+      // CSV escaping
+      if (s.includes('"') || s.includes(",") || s.includes("\n")) {
+        return `"${s.replaceAll('"', '""')}"`;
+      }
+      return s;
+    };
+
+    const lines = [
+      headers.join(","),
+      ...filtered.map((r) => headers.map((h) => esc(r?.[h])).join(",")),
+    ];
+
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `assets_${category}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
 
   // ============ stats click as quick filter ============
   const pickStat = (key) => {
@@ -153,10 +211,11 @@ export default function AssetsSection() {
     await removeAsset(row.id);
   };
 
-  const onExport = () => alert("Export .xlsx: kita pasang di step berikutnya.");
-  const onImport = () => alert("Import .xlsx: kita pasang di step berikutnya.");
+  // ✅ sekarang Unduh akan benar-benar export CSV (bukan alert lagi)
+  const onExport = () => exportCSV();
 
-  const categoryLabel = getCategoryLabel(category);
+  // sementara placeholder dulu
+  const onImport = () => alert("Import CSV: kita pasang step berikutnya.");
 
   return (
     <div className="space-y-4">
@@ -194,7 +253,7 @@ export default function AssetsSection() {
 
           <button
             onClick={onExport}
-            disabled={busy}
+            disabled={busy || loading}
             className="px-4 py-2 rounded-2xl bg-blue-50 text-blue-700 font-black text-xs uppercase tracking-widest flex items-center gap-2 disabled:opacity-60"
             type="button"
           >

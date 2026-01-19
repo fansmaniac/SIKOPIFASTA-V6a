@@ -81,9 +81,19 @@ export function getStatusLabel(statusKey) {
   return ASSET_STATUS_LABEL[statusKey] || String(statusKey || "-");
 }
 
-export function getStatusOrder(statusKey) {
-  return STATUS_ORDER[statusKey] ?? 99;
+// contoh urutan prioritas: requested paling atas
+export function getStatusOrder(status) {
+  const s = String(status || "available").toLowerCase();
+  const order = {
+    requested: 1,     // butuh tindakan admin
+    borrowed: 2,      // sedang dipinjam
+    maintenance: 3,   // perawatan
+    broken: 4,        // rusak
+    available: 5,     // aman di bawah
+  };
+  return order[s] ?? 99;
 }
+
 
 /**
  * Build uniqueKey untuk upsert via upload excel
