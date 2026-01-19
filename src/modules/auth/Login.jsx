@@ -1,13 +1,16 @@
 // src/modules/auth/Login.jsx
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ShieldCheck, Mail, Lock, Eye, EyeOff, LogIn, KeyRound } from "lucide-react";
 import { loginWithEmail, sendResetPassword } from "../../services/auth.service";
 
 /**
- * Props:
- * - onGoRegister: function() => void  (pindah ke halaman register)
+ * Props (opsional):
+ * - onGoRegister: function() => void  (kalau tidak dikirim, akan navigate ke /register)
  */
 export default function Login({ onGoRegister }) {
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -16,6 +19,11 @@ export default function Login({ onGoRegister }) {
   const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
+  const goRegister = () => {
+    if (typeof onGoRegister === "function") return onGoRegister();
+    navigate("/register");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -142,7 +150,7 @@ export default function Login({ onGoRegister }) {
 
         <div className="mt-8 flex flex-col gap-4 border-t border-gray-50 pt-8 text-center">
           <button
-            onClick={onGoRegister}
+            onClick={goRegister}
             className="text-indigo-600 font-black text-sm uppercase tracking-widest hover:text-indigo-800 transition-colors"
             type="button"
           >
