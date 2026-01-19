@@ -9,6 +9,8 @@ import {
   Pencil,
   Trash2,
   ClipboardCheck,
+  RotateCcw,
+  X,
 } from "lucide-react";
 
 import {
@@ -166,9 +168,11 @@ function mapRowToPayload(headers, values, fallbackCategory) {
     chassisNumber: String(h(["chassisnumber", "nomorrangka"]))?.trim(),
     engineNumber: String(h(["enginenumber", "nomormesin"]))?.trim(),
     oilEngineAt: String(h(["oilengineat", "tglgantiolimesin"]))?.trim() || null,
-    oilEngineNextAt: String(h(["oilenginenextat", "tglgantiolimesinberikutnya"]))?.trim() || null,
+    oilEngineNextAt:
+      String(h(["oilenginenextat", "tglgantiolimesinberikutnya"]))?.trim() || null,
     oilGearAt: String(h(["oilgearat", "tglgantioliperseneling"]))?.trim() || null,
-    oilGearNextAt: String(h(["oilgearnextat", "tglgantiolipersenelingberikutnya"]))?.trim() || null,
+    oilGearNextAt:
+      String(h(["oilgearnextat", "tglgantiolipersenelingberikutnya"]))?.trim() || null,
     taxNextAt: String(h(["taxnextat", "tglbayarpajakberikutnya"]))?.trim() || null,
 
     // electronics/others
@@ -180,6 +184,26 @@ function mapRowToPayload(headers, values, fallbackCategory) {
   };
 
   return payload;
+}
+
+function toDateInput(v) {
+  if (!v) return "";
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function todayISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export default function AssetsSection() {
@@ -206,6 +230,13 @@ export default function AssetsSection() {
   const fileRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
+
+  // ✅ NEW: modal proses ajuan + modal kembalikan (tanpa merubah UI lama)
+  const [openProcess, setOpenProcess] = useState(false);
+  const [processingRow, setProcessingRow] = useState(null);
+
+  const [openReturn, setOpenReturn] = useState(false);
+  const [returnRow, setReturnRow] = useState(null);
 
   // reset filter/search saat ganti kategori
   useEffect(() => {
@@ -244,7 +275,9 @@ export default function AssetsSection() {
         const name = normalizeSearchText(r?.name || r?.nama || "");
         const plate = normalizeSearchText(r?.vehiclePlate || r?.plate || r?.nomorPlat || "");
         const nup = normalizeSearchText(r?.nupCode || r?.nup || r?.kodeNup || "");
-        const borrower = normalizeSearchText(r?.borrowerName || r?.currentBorrowerName || r?.peminjam || "");
+        const borrower = normalizeSearchText(
+          r?.borrowerName || r?.currentBorrowerName || r?.peminjam || ""
+        );
         const code = normalizeSearchText(r?.code || r?.kode || "");
 
         return (
@@ -462,6 +495,17 @@ export default function AssetsSection() {
 
   const onExport = () => exportCSV();
 
+  // ✅ NEW: open modal proses ajuan / kembalikan
+  const onProcessRequest = (row) => {
+    setProcessingRow(row);
+    setOpenProcess(true);
+  };
+
+  const onReturn = (row) => {
+    setReturnRow(row);
+    setOpenReturn(true);
+  };
+
   return (
     <div className="space-y-4">
       {/* hidden file input */}
@@ -495,6 +539,7 @@ export default function AssetsSection() {
         </div>
 
         <div className="flex flex-wrap gap-2 sm:justify-end">
+          {/* ✅ TIDAK DIUBAH */}
           <button
             onClick={onImportClick}
             disabled={busy || importing}
@@ -505,6 +550,7 @@ export default function AssetsSection() {
             Unggah CSV
           </button>
 
+          {/* ✅ TIDAK DIUBAH */}
           <button
             onClick={onExport}
             disabled={busy || loading || importing}
@@ -515,6 +561,7 @@ export default function AssetsSection() {
             Unduh CSV
           </button>
 
+          {/* ✅ TIDAK DIUBAH */}
           <button
             onClick={onAdd}
             disabled={busy || importing}
@@ -525,6 +572,7 @@ export default function AssetsSection() {
             Tambah
           </button>
 
+          {/* ✅ TIDAK DIUBAH */}
           <button
             onClick={reload}
             disabled={busy || loading || importing}
@@ -720,17 +768,29 @@ export default function AssetsSection() {
 
                     <td className="p-5">
                       <div className="flex items-center justify-end gap-2">
+                        {/* ✅ UPGRADE: requested -> modal proses ajuan (tanpa ubah UI lain) */}
                         {(r.status || "") === "requested" && (
                           <button
                             title="Proses Ajuan"
                             disabled={busy || importing}
                             className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center disabled:opacity-60"
                             type="button"
-                            onClick={() =>
-                              alert("Proses ajuan: nanti kita sambung ke loans flow.")
-                            }
+                            onClick={() => onProcessRequest(r)}
                           >
                             <ClipboardCheck size={18} />
+                          </button>
+                        )}
+
+                        {/* ✅ NEW: borrowed -> kembalikan */}
+                        {(r.status || "") === "borrowed" && (
+                          <button
+                            title="Kembalikan"
+                            disabled={busy || importing}
+                            className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center disabled:opacity-60"
+                            type="button"
+                            onClick={() => onReturn(r)}
+                          >
+                            <RotateCcw size={18} />
                           </button>
                         )}
 
@@ -780,15 +840,92 @@ export default function AssetsSection() {
           }
         }}
       />
+
+      {/* ✅ NEW: Modal Proses Ajuan (ditambah, tidak menghapus apapun) */}
+      <ProcessRequestModal
+        open={openProcess}
+        row={processingRow}
+        saving={busy || importing}
+        onClose={() => {
+          setOpenProcess(false);
+          setProcessingRow(null);
+        }}
+        onApprove={async ({ borrowerName, loanStartAt, loanEndAt }) => {
+          if (!processingRow) return;
+
+          const payload = {
+            ...processingRow,
+            status: "borrowed",
+            borrowerName: borrowerName.trim(),
+            loanStartAt: loanStartAt || todayISO(),
+            loanEndAt: loanEndAt || null,
+            isDeleted: false,
+          };
+
+          const ok = await saveAsset(payload);
+          if (ok) {
+            await reload();
+            setOpenProcess(false);
+            setProcessingRow(null);
+          }
+        }}
+        onReject={async () => {
+          if (!processingRow) return;
+
+          const payload = {
+            ...processingRow,
+            status: "available",
+            borrowerName: "",
+            loanStartAt: null,
+            loanEndAt: null,
+            isDeleted: false,
+          };
+
+          const ok = await saveAsset(payload);
+          if (ok) {
+            await reload();
+            setOpenProcess(false);
+            setProcessingRow(null);
+          }
+        }}
+      />
+
+      {/* ✅ NEW: Modal Kembalikan */}
+      <ReturnModal
+        open={openReturn}
+        row={returnRow}
+        saving={busy || importing}
+        onClose={() => {
+          setOpenReturn(false);
+          setReturnRow(null);
+        }}
+        onConfirm={async () => {
+          if (!returnRow) return;
+
+          const payload = {
+            ...returnRow,
+            status: "available",
+            borrowerName: "",
+            loanStartAt: null,
+            loanEndAt: null,
+            isDeleted: false,
+          };
+
+          const ok = await saveAsset(payload);
+          if (ok) {
+            await reload();
+            setOpenReturn(false);
+            setReturnRow(null);
+          }
+        }}
+      />
     </div>
   );
 }
 
 function Th({ children, className = "" }) {
   return (
-    <th
-      className={`p-4 text-xs font-black uppercase tracking-widest text-gray-400 ${className}`}
-    >
+    <th className={`p-4 text-xs font-black uppercase tracking-widest text-gray-400 ${className}`}>
       {children}
     </th>
   );
@@ -801,15 +938,9 @@ function StatCard({ title, value, onClick, active, disabled }) {
       disabled={disabled}
       type="button"
       className={`rounded-3xl border p-4 text-left transition shadow-xl disabled:opacity-60
-        ${
-          active ? "bg-slate-800 border-slate-800 text-white" : "bg-white border-white"
-        }`}
+        ${active ? "bg-slate-800 border-slate-800 text-white" : "bg-white border-white"}`}
     >
-      <p
-        className={`text-[10px] font-black uppercase tracking-widest ${
-          active ? "text-white/70" : "text-gray-400"
-        }`}
-      >
+      <p className={`text-[10px] font-black uppercase tracking-widest ${active ? "text-white/70" : "text-gray-400"}`}>
         {title}
       </p>
       <p className={`mt-2 text-2xl font-black ${active ? "text-white" : "text-gray-900"}`}>
@@ -838,5 +969,212 @@ function StatusPill({ status }) {
     >
       {label}
     </span>
+  );
+}
+
+// =====================
+// ✅ NEW MODALS (tambahan)
+// =====================
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function ProcessRequestModal({ open, row, onClose, onApprove, onReject, saving }) {
+  const [borrowerName, setBorrowerName] = useState("");
+  const [loanStartAt, setLoanStartAt] = useState(todayISO());
+  const [loanEndAt, setLoanEndAt] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setErr("");
+    setBorrowerName(String(row?.borrowerName || row?.currentBorrowerName || row?.peminjam || "").trim());
+    setLoanStartAt(toDateInput(row?.loanStartAt || row?.tglPinjam) || todayISO());
+    setLoanEndAt(toDateInput(row?.loanEndAt || row?.tglKembali) || "");
+  }, [open, row]);
+
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  const title = row?.name || row?.nama || "Item";
+
+  const submitApprove = async () => {
+    setErr("");
+    if (!borrowerName.trim()) {
+      setErr("Nama peminjam wajib diisi.");
+      return;
+    }
+    await onApprove?.({ borrowerName, loanStartAt, loanEndAt });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
+      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col min-h-0">
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3 shrink-0">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Proses Ajuan</p>
+            <p className="text-sm text-gray-600 font-bold mt-1">{title}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600"
+            disabled={saving}
+            title="Tutup"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+          {err ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-sm font-bold">
+              {err}
+            </div>
+          ) : null}
+
+          <Field label="Nama Peminjam *">
+            <input
+              value={borrowerName}
+              onChange={(e) => setBorrowerName(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none"
+              placeholder="Contoh: Budi / TU / Seksi Sarpras"
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Tanggal Pinjam">
+              <input
+                type="date"
+                value={loanStartAt}
+                onChange={(e) => setLoanStartAt(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none"
+              />
+            </Field>
+            <Field label="Perkiraan Tanggal Kembali (opsional)">
+              <input
+                type="date"
+                value={loanEndAt}
+                onChange={(e) => setLoanEndAt(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none"
+              />
+            </Field>
+          </div>
+
+          <div className="h-6" />
+        </div>
+
+        <div className="shrink-0 bg-white border-t border-slate-100 px-5 py-4">
+          <div className="flex flex-wrap gap-2 justify-end">
+            <button
+              type="button"
+              onClick={onReject}
+              disabled={saving}
+              className="px-5 py-3 rounded-2xl bg-rose-50 text-rose-700 font-black text-xs uppercase tracking-widest border border-rose-100 disabled:opacity-70"
+            >
+              Tolak
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="px-5 py-3 rounded-2xl bg-slate-100 text-gray-700 font-black text-xs uppercase tracking-widest disabled:opacity-70"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={submitApprove}
+              disabled={saving}
+              className="px-5 py-3 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest shadow-lg disabled:opacity-70"
+            >
+              Setujui (Dipinjam)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReturnModal({ open, row, onClose, onConfirm, saving }) {
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  const title = row?.name || row?.nama || "Item";
+  const borrower = row?.borrowerName || row?.currentBorrowerName || row?.peminjam || "-";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
+      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Kembalikan</p>
+            <p className="text-sm text-gray-600 font-bold mt-1">{title}</p>
+            <p className="text-xs text-gray-500 font-semibold mt-2">
+              Peminjam: <span className="font-black text-gray-800">{borrower}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600"
+            disabled={saving}
+            title="Tutup"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 text-sm font-bold">
+            Konfirmasi pengembalian akan mengubah status menjadi <b>TERSEDIA</b> dan mengosongkan data peminjaman.
+          </div>
+        </div>
+
+        <div className="px-5 pb-5 flex gap-2 justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-5 py-3 rounded-2xl bg-slate-100 text-gray-700 font-black text-xs uppercase tracking-widest disabled:opacity-70"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={saving}
+            className="px-5 py-3 rounded-2xl bg-emerald-600 text-white font-black text-xs uppercase tracking-widest shadow-lg disabled:opacity-70"
+          >
+            Ya, Kembalikan
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
