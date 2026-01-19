@@ -11,15 +11,12 @@ const STATUS_OPTIONS = [
 ];
 
 function makeId() {
-  // untuk browser modern
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  // fallback
   return `asset_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 function toISODateInput(v) {
   if (!v) return "";
-  // kalau sudah "YYYY-MM-DD"
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "";
@@ -79,6 +76,16 @@ export default function AssetFormModal({
     specs: "",
   });
 
+  // ✅ Lock scroll body saat modal open
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   // hydrate dari initialData
   useEffect(() => {
     if (!open) return;
@@ -118,7 +125,6 @@ export default function AssetFormModal({
     }));
   }, [open, initialData, category]);
 
-  // kalau modal ditutup, jangan render apa-apa
   if (!open) return null;
 
   const set = (key) => (e) => {
@@ -135,6 +141,7 @@ export default function AssetFormModal({
     if (!form.name.trim()) return "Nama barang wajib diisi.";
     if (!form.status) return "Status wajib dipilih.";
 
+    // ✅ validasi sesuai kategori yang aktif (props category)
     if (category === "vehicle") {
       if (!form.vehiclePlate.trim()) return "Nomor plat wajib diisi (kendaraan).";
     } else {
@@ -156,9 +163,12 @@ export default function AssetFormModal({
 
     setSaving(true);
     try {
+      const resolvedCategory = form.category || category;
+
       const payload = {
+        // common
         id: isEdit ? form.id : makeId(),
-        category: form.category || category,
+        category: resolvedCategory,
 
         name: form.name.trim(),
         code: form.code.trim(),
@@ -168,26 +178,26 @@ export default function AssetFormModal({
         status: form.status,
         photoUrl: String(form.photoUrl || "").trim(),
 
-        ...( (form.category || category) === "vehicle"
-    ? {
-        vehiclePlate: form.vehiclePlate.trim(),
-        chassisNumber: form.chassisNumber.trim(),
-        engineNumber: form.engineNumber.trim(),
-        oilEngineAt: form.oilEngineAt || null,
-        oilEngineNextAt: form.oilEngineNextAt || null,
-        oilGearAt: form.oilGearAt || null,
-        oilGearNextAt: form.oilGearNextAt || null,
-        taxNextAt: form.taxNextAt || null,
-      }
-    : {
-        nupCode: form.nupCode.trim(),
-        brand: form.brand.trim(),
-        specs: form.specs.trim(),
-      }
-         ),
+        // category-specific
+        ...(resolvedCategory === "vehicle"
+          ? {
+              vehiclePlate: form.vehiclePlate.trim(),
+              chassisNumber: form.chassisNumber.trim(),
+              engineNumber: form.engineNumber.trim(),
+              oilEngineAt: form.oilEngineAt || null,
+              oilEngineNextAt: form.oilEngineNextAt || null,
+              oilGearAt: form.oilGearAt || null,
+              oilGearNextAt: form.oilGearNextAt || null,
+              taxNextAt: form.taxNextAt || null,
+            }
+          : {
+              nupCode: form.nupCode.trim(),
+              brand: form.brand.trim(),
+              specs: form.specs.trim(),
+            }),
 
-    isDeleted: false,  
-};
+        isDeleted: false,
+      };
 
       await onSubmit?.(payload);
       onClose?.();
@@ -200,9 +210,10 @@ export default function AssetFormModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
+      {/* ✅ modal wrapper: max height + flex column */}
+      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3">
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3 shrink-0">
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-gray-400">
               {title}
@@ -216,13 +227,14 @@ export default function AssetFormModal({
             onClick={onClose}
             className="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600"
             title="Tutup"
+            disabled={saving}
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        {/* ✅ Form: scrollable */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
           {err ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-sm font-bold">
               {err}
@@ -425,8 +437,13 @@ export default function AssetFormModal({
             </>
           )}
 
-          {/* Footer */}
-          <div className="pt-2 flex gap-2 justify-end">
+          {/* spacer supaya konten terakhir nggak ketutup footer sticky */}
+          <div className="h-20" />
+        </form>
+
+        {/* ✅ Footer sticky di bawah modal */}
+        <div className="shrink-0 bg-white border-t border-slate-100 px-5 py-4 sticky bottom-0">
+          <div className="flex gap-2 justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -436,14 +453,19 @@ export default function AssetFormModal({
               Batal
             </button>
             <button
-              type="submit"
+              type="button"
+              onClick={() => {
+                // trigger submit form secara aman
+                const evt = new Event("submit", { cancelable: true, bubbles: true });
+                document.querySelector("form")?.dispatchEvent(evt);
+              }}
               className="px-5 py-3 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest shadow-lg disabled:opacity-70"
               disabled={saving}
             >
               {saving ? "Menyimpan..." : "Simpan"}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
