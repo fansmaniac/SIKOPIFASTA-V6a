@@ -141,7 +141,6 @@ export default function AssetFormModal({
     if (!form.name.trim()) return "Nama barang wajib diisi.";
     if (!form.status) return "Status wajib dipilih.";
 
-    // ✅ validasi sesuai kategori yang aktif (props category)
     if (category === "vehicle") {
       if (!form.vehiclePlate.trim()) return "Nomor plat wajib diisi (kendaraan).";
     } else {
@@ -208,10 +207,13 @@ export default function AssetFormModal({
     }
   };
 
+  // ✅ penting: untuk submit button tanpa querySelector
+  const formId = "asset-form-modal";
+
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3">
-      {/* ✅ modal wrapper: max height + flex column */}
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col">
+      {/* ✅ modal wrapper: max height + flex column + min-h-0 (kunci scroll) */}
+      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col min-h-0">
         {/* Header */}
         <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-3 shrink-0">
           <div>
@@ -233,8 +235,12 @@ export default function AssetFormModal({
           </button>
         </div>
 
-        {/* ✅ Form: scrollable */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+        {/* ✅ Form body: scrollable (kunci: flex-1 + min-h-0) */}
+        <form
+          id={formId}
+          onSubmit={handleSubmit}
+          className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4"
+        >
           {err ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 text-sm font-bold">
               {err}
@@ -437,12 +443,12 @@ export default function AssetFormModal({
             </>
           )}
 
-          {/* spacer supaya konten terakhir nggak ketutup footer sticky */}
-          <div className="h-20" />
+          {/* spacer kecil biar konten terakhir nggak mepet footer */}
+          <div className="h-6" />
         </form>
 
-        {/* ✅ Footer sticky di bawah modal */}
-        <div className="shrink-0 bg-white border-t border-slate-100 px-5 py-4 sticky bottom-0">
+        {/* ✅ Footer: nempel bawah modal (tanpa sticky) */}
+        <div className="shrink-0 bg-white border-t border-slate-100 px-5 py-4">
           <div className="flex gap-2 justify-end">
             <button
               type="button"
@@ -452,13 +458,10 @@ export default function AssetFormModal({
             >
               Batal
             </button>
+
             <button
-              type="button"
-              onClick={() => {
-                // trigger submit form secara aman
-                const evt = new Event("submit", { cancelable: true, bubbles: true });
-                document.querySelector("form")?.dispatchEvent(evt);
-              }}
+              type="submit"
+              form={formId}
               className="px-5 py-3 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest shadow-lg disabled:opacity-70"
               disabled={saving}
             >
